@@ -27,6 +27,10 @@ const productSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  instaVideo: {
+     type: String,
+     default: "",
+  },
   createdAt: {
     type: Date,
     default: Date.now,

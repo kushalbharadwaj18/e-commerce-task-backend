@@ -10,6 +10,7 @@ const orderRoutes = require("./routes/orders")
 const paymentRoutes = require("./routes/payments")
 const adminRoutes = require("./routes/admin")
 const categoryRoutes = require("./routes/categories")
+const Message = require("./models/Message")
 dotenv.config()
 
 const app = express()
@@ -42,6 +43,23 @@ app.use("/api/payments", paymentRoutes)
 app.get("/api/health", (req, res) => {
   res.json({ status: "Server is running" })
 })
+
+app.post("/api/contact", async (req, res) => {
+  try {
+    const { name, email, subject, message } = req.body;
+
+    if (!name || !email || !message)
+      return res.status(400).json({ error: "All required fields must be filled" });
+
+    const newMessage = new Message({ name, email, subject, message });
+    await newMessage.save();
+
+    res.status(201).json({ success: true, message: "Message saved successfully" });
+  } catch (error) {
+    console.error("Error saving message:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => {
