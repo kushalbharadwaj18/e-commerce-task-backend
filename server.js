@@ -10,6 +10,8 @@ const orderRoutes = require("./routes/orders")
 const paymentRoutes = require("./routes/payments")
 const adminRoutes = require("./routes/admin")
 const categoryRoutes = require("./routes/categories")
+const sellerRoutes = require("./routes/seller")
+const adminSellerRoutes = require("./routes/adminSeller")
 const Message = require("./models/Message")
 dotenv.config()
 
@@ -22,10 +24,7 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }))
 
 // MongoDB Connection
 mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/amazon-clone", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/amazon-clone")
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log("MongoDB connection error:", err))
 
@@ -38,6 +37,8 @@ app.use("/api/categories", categoryRoutes)
 app.use("/api/checkout", checkoutRoutes)
 app.use("/api/orders", orderRoutes)
 app.use("/api/payments", paymentRoutes)
+app.use("/api/seller", sellerRoutes)
+app.use("/api/admin/sellers", adminSellerRoutes)
 
 // Health check
 app.get("/api/health", (req, res) => {

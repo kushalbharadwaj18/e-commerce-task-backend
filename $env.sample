@@ -3,3 +3,7 @@ JWT_SECRET="amazon-clone"
 PORT=5000
 ADMIN_EMAIL=admin@amazon.com
 ADMIN_PASSWORD=admin123456
+
+# Clerk Configuration (optional - for Clerk auth support)
+CLERK_SECRET_KEY=your_clerk_secret_key_here
+VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key_here

@@ -31,6 +31,17 @@ const productSchema = new mongoose.Schema({
      type: String,
      default: "",
   },
+  // Seller information
+  sellerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Seller",
+    default: null, // null for admin products, set for seller products
+  },
+  status: {
+    type: String,
+    enum: ["active", "inactive", "out_of_stock"],
+    default: "active",
+  },
   createdAt: {
     type: Date,
     default: Date.now,

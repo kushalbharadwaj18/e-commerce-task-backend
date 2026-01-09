@@ -4,6 +4,8 @@ const User = require("../models/User")
 
 const router = express.Router()
 
+// ===== NORMAL EMAIL-PASSWORD AUTH =====
+
 // Signup
 router.post("/signup", async (req, res) => {
   try {
@@ -15,17 +17,16 @@ router.post("/signup", async (req, res) => {
       return res.status(400).json({ message: "User already exists" })
     }
  
-    // Create new user
-    const user = new User({ name, email, password })
+    // Create new user with email-password auth
+    const user = new User({ name, email, password, authMethod: "email-password" })
     await user.save()
 
     // Generate token 
-
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || "your-secret-key", { expiresIn: "7d" })
 
     res.status(201).json({
       message: "User created successfully",
-      user: { _id: user._id, name: user.name, email: user.email },
+      user: { _id: user._id, name: user.name, email: user.email, authMethod: "email-password" },
       token,
     })
   } catch (error) {
@@ -55,7 +56,7 @@ router.post("/login", async (req, res) => {
 
     res.json({
       message: "Login successful",
-      user: { _id: user._id, name: user.name, email: user.email },
+      user: { _id: user._id, name: user.name, email: user.email, authMethod: "email-password" },
       token,
     })
   } catch (error) {
