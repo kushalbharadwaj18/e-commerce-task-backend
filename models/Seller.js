@@ -66,6 +66,20 @@ const sellerSchema = new mongoose.Schema({
   rejectionReason: String,
   approvedAt: Date,
 
+  // Email Verification
+  isEmailVerified: {
+    type: Boolean,
+    default: false,
+  },
+  emailVerificationOTP: {
+    code: String,
+    expiresAt: Date,
+    attempts: {
+      type: Number,
+      default: 0,
+    },
+  },
+
   // Analytics
   totalEarnings: {
     type: Number,

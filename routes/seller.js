@@ -5,6 +5,7 @@ const Seller = require("../models/Seller");
 const Product = require("../models/Product");
 const Order = require("../models/Order");
 const { requireApprovedSeller } = require("../middleware/sellerAuth");
+const { generateOTPWithExpiry, validateOTP, sendOTPToEmail } = require("../utils/otpService");
 
 const router = express.Router();
 
@@ -86,11 +87,27 @@ router.post("/signup", async (req, res) => {
         accountNumber,
         ifscCode,
       },
+      isEmailVerified: false, // Email not verified yet
     });
 
     await seller.save();
 
-    // Generate token (for immediate login, but won't have access until approved)
+    // Generate and send OTP
+    try {
+      const otpData = generateOTPWithExpiry(10); // OTP valid for 10 minutes
+      seller.emailVerificationOTP = otpData;
+      await seller.save();
+
+      // Send OTP email
+      await sendOTPToEmail(seller.email, otpData.code, seller.name);
+
+      console.log(`[SELLER-SIGNUP] OTP sent to ${email}`);
+    } catch (otpError) {
+      console.error("[SELLER-SIGNUP] Failed to send OTP:", otpError.message);
+      // Continue without OTP sent, user can request resend
+    }
+
+    // Generate token (for email verification step)
     const token = jwt.sign(
       { sellerId: seller._id },
       process.env.JWT_SECRET || "your-secret-key",
@@ -98,13 +115,13 @@ router.post("/signup", async (req, res) => {
     );
 
     res.status(201).json({
-      message:
-        "Seller registered successfully. Please wait for admin approval.",
+      message: "Seller registered successfully. Please verify your email with the OTP sent to your email address.",
       seller: {
         _id: seller._id,
         name: seller.name,
         email: seller.email,
         status: seller.status,
+        isEmailVerified: seller.isEmailVerified,
       },
       token,
     });
@@ -112,6 +129,126 @@ router.post("/signup", async (req, res) => {
     console.error("[SELLER-SIGNUP] Error:", error);
     res.status(500).json({
       message: "Error registering seller",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * Send or Resend OTP
+ * POST /api/seller/send-otp
+ */
+router.post("/send-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const seller = await Seller.findOne({ email });
+    if (!seller) {
+      return res.status(404).json({ message: "Seller not found" });
+    }
+
+    if (seller.isEmailVerified) {
+      return res.status(400).json({ message: "Email is already verified" });
+    }
+
+    // Generate OTP
+    const otpData = generateOTPWithExpiry(10);
+    seller.emailVerificationOTP = otpData;
+    await seller.save();
+
+    // Send OTP email
+    await sendOTPToEmail(seller.email, otpData.code, seller.name);
+
+    console.log(`[SEND-OTP] OTP resent to ${email}`);
+
+    res.json({
+      message: "OTP sent successfully to your email",
+      email: seller.email,
+    });
+  } catch (error) {
+    console.error("[SEND-OTP] Error:", error);
+    res.status(500).json({
+      message: "Error sending OTP",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * Verify Email with OTP
+ * POST /api/seller/verify-email
+ */
+router.post("/verify-email", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and OTP are required" });
+    }
+
+    const seller = await Seller.findOne({ email });
+    if (!seller) {
+      return res.status(404).json({ message: "Seller not found" });
+    }
+
+    if (seller.isEmailVerified) {
+      return res.status(400).json({ message: "Email is already verified" });
+    }
+
+    // Validate OTP
+    const otpValidation = validateOTP(seller.emailVerificationOTP, otp);
+    if (!otpValidation.valid) {
+      // Increment attempts
+      if (!seller.emailVerificationOTP.attempts) {
+        seller.emailVerificationOTP.attempts = 0;
+      }
+      seller.emailVerificationOTP.attempts += 1;
+
+      // Lock after 5 failed attempts
+      if (seller.emailVerificationOTP.attempts >= 5) {
+        console.log(`[VERIFY-EMAIL] Too many attempts for ${email}`);
+        await seller.save();
+        return res.status(429).json({
+          message: "Too many failed attempts. Please request a new OTP.",
+        });
+      }
+
+      await seller.save();
+      return res.status(400).json({
+        message: otpValidation.message,
+        attempts: seller.emailVerificationOTP.attempts,
+      });
+    }
+
+    // OTP is valid, mark email as verified
+    seller.isEmailVerified = true;
+    seller.emailVerificationOTP = {
+      code: null,
+      expiresAt: null,
+      attempts: 0,
+    };
+    await seller.save();
+
+    console.log(`[VERIFY-EMAIL] Email verified for seller: ${seller._id}`);
+
+    res.json({
+      message: "Email verified successfully! Please wait for admin approval.",
+      seller: {
+        _id: seller._id,
+        name: seller.name,
+        email: seller.email,
+        isEmailVerified: seller.isEmailVerified,
+        status: seller.status,
+      },
+    });
+  } catch (error) {
+    console.error("[VERIFY-EMAIL] Error:", error);
+    res.status(500).json({
+      message: "Error verifying email",
       error: error.message,
     });
   }
@@ -307,6 +444,13 @@ router.get("/status", async (req, res) => {
       return res.status(404).json({ message: "Seller not found" });
     }
 
+    console.log("[SELLER-STATUS] Returning status for seller:", {
+      _id: seller._id,
+      status: seller.status,
+      isApproved: seller.isApproved,
+      createdAt: seller.createdAt,
+    });
+
     res.json({
       status: seller.status,
       isApproved: seller.isApproved,
@@ -314,6 +458,7 @@ router.get("/status", async (req, res) => {
       createdAt: seller.createdAt,
     });
   } catch (error) {
+    console.error("[SELLER-STATUS] Error:", error.message);
     res.status(401).json({ message: "Invalid token" });
   }
 });

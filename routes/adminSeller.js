@@ -3,6 +3,7 @@ const Seller = require("../models/Seller");
 const Product = require("../models/Product");
 const Order = require("../models/Order");
 const { requireAdminAuth } = require("../middleware/adminAuth");
+const { sendApprovalEmail, sendRejectionEmail } = require("../utils/emailService");
 
 const router = express.Router();
 
@@ -134,6 +135,15 @@ router.post("/:id/approve", requireAdminAuth, async (req, res) => {
 
     await seller.save();
 
+    // Send approval email notification
+    try {
+      await sendApprovalEmail(seller.email, seller.name);
+      console.log(`Approval email sent to ${seller.email}`);
+    } catch (emailError) {
+      console.error(`Failed to send approval email to ${seller.email}:`, emailError);
+      // Don't fail the approval if email fails
+    }
+
     res.json({
       message: "Seller approved successfully",
       seller: {
@@ -177,6 +187,15 @@ router.post("/:id/reject", requireAdminAuth, async (req, res) => {
     seller.rejectionReason = reason;
 
     await seller.save();
+
+    // Send rejection email notification
+    try {
+      await sendRejectionEmail(seller.email, seller.name, reason);
+      console.log(`Rejection email sent to ${seller.email}`);
+    } catch (emailError) {
+      console.error(`Failed to send rejection email to ${seller.email}:`, emailError);
+      // Don't fail the rejection if email fails
+    }
 
     res.json({
       message: "Seller rejected",
